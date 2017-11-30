@@ -385,6 +385,7 @@ void SatIPIO::onUrlChanged()
 	d.udpThread = new QThread();
 	d.udpThread->start();
 	d.udpSocket = new QUdpSocket();
+	d.udpSocket->setReadBufferSize(10485760);
 	connect(d.udpSocket, &QIODevice::readyRead, this,
 			&SatIPIO::udpSocketRead, Qt::DirectConnection);
 
