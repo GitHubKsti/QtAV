@@ -166,6 +166,10 @@ void AudioThread::run()
         if (!pkt.isValid() && !pkt.isEOF()) // decode it will cause crash
             continue;
         qreal dts = pkt.dts; //FIXME: pts and dts
+        if (d.clock->initialValue() == 0) {
+            qDebug("Update initial clock value from audio thread\n");
+            d.clock->setInitialValue(dts);
+        }
         // no key frame for audio. so if pts reaches, try decode and skip render if got frame pts does not reach
         bool skip_render = pkt.pts >= 0 && pkt.pts < d.render_pts0; // if audio stream is too short, seeking will fail and d.render_pts0 keeps >0
         // audio has no key frame, skip rendering equals to skip decoding
@@ -292,6 +296,26 @@ void AudioThread::run()
             d.last_pts = d.clock->value(); //not pkt.pts! the delay is updated!
             continue;
         }
+        /* Initialise Audio Output if it was not initialised before, which can
+         * happen for streams which are not probed on open */
+        if (ao && !ao->isAvailable()) {
+            AVCodecContext *avctx = (AVCodecContext*)dec->codecContext();
+            AudioFormat af;
+            af.setSampleRate(avctx->sample_rate);
+            af.setSampleFormatFFmpeg(avctx->sample_fmt);
+            af.setChannelLayoutFFmpeg(avctx->channel_layout);
+            if (af.isValid()) {
+                ao->setAudioFormat(af); /// set before close to workaround OpenAL context lost
+                ao->close();
+                qDebug() << "AudioOutput format: " << ao->audioFormat() << "; requested: " << ao->requestedFormat();
+                if (!ao->open()) {
+                    qWarning("Audio: Failed to open ao\n");
+                } else {
+                    qDebug("Audio: Succesfully opened ao\n");
+                }
+                dec->resampler()->setOutAudioFormat(ao->audioFormat());
+            }
+        }
         // reduce here to ensure to decode the rest data in the next loop
         if (!pkt.isEOF())
             pkt.skip(pkt.data.size() - dec->undecodedSize());
@@ -364,9 +388,11 @@ void AudioThread::run()
             }
             decodedPos += chunk;
             decodedSize -= chunk;
-            pts += chunk_delay;
-            pkt.pts += chunk_delay; // packet not fully decoded, use new pts in the next decoding
-            pkt.dts += chunk_delay;
+            if (pts != 0) {
+               pts += chunk_delay;
+               pkt.pts += chunk_delay; // packet not fully decoded, use new pts in the next decoding
+               pkt.dts += chunk_delay;
+            }
         }
         if (has_ao)
             emit frameDelivered();

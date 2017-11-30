@@ -209,7 +209,7 @@ void AVPlayer::Private::applyFrameRate()
             r = qAbs(qreal(vfps))/statistics.video.frame_rate;
     } else {
         clock->setClockAuto(true);
-        clock->setClockType(athread && ao->isOpen() ? AVClock::AudioClock : AVClock::ExternalClock);
+        clock->setClockType(athread ? AVClock::AudioClock : AVClock::ExternalClock);
         if (vthread)
             vthread->setFrameRate(0.0);
         ao->setSpeed(1);
@@ -386,22 +386,15 @@ bool AVPlayer::Private::setupAudioThread(AVPlayer *player)
     af.setSampleRate(avctx->sample_rate);
     af.setSampleFormatFFmpeg(avctx->sample_fmt);
     af.setChannelLayoutFFmpeg(avctx->channel_layout);
-    if (!af.isValid()) {
-        qWarning("invalid audio format. audio stream will be disabled");
-        return false;
-    }
-    //af.setChannels(avctx->channels);
-    // always reopen to ensure internal buffer queue inside audio backend(openal) is clear. also make it possible to change backend when replay.
-    //if (ao->audioFormat() != af) {
-        //qDebug("ao audio format is changed. reopen ao");
+    if (af.isValid()) {
         ao->setAudioFormat(af); /// set before close to workaround OpenAL context lost
         ao->close();
         qDebug() << "AudioOutput format: " << ao->audioFormat() << "; requested: " << ao->requestedFormat();
         if (!ao->open()) {
             return false;
         }
-    //}
-    adec->resampler()->setOutAudioFormat(ao->audioFormat());
+        adec->resampler()->setOutAudioFormat(ao->audioFormat());
+    }
     // no need to set resampler if AudioFrame is used
 #if !USE_AUDIO_FRAME
     adec->resampler()->inAudioFormat().setSampleFormatFFmpeg(avctx->sample_fmt);
