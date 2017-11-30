@@ -79,7 +79,7 @@ extern "C"
 #endif //QTAV_HAVE(AVRESAMPLE)
 
 #if QTAV_HAVE(AVFILTER)
-#include <libavfilter/avfiltergraph.h> /*code is here for old version*/
+//#include <libavfilter/avfiltergraph.h> /*code is here for old version*/
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
