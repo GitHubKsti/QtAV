@@ -411,7 +411,7 @@ VideoFrameExtractor::VideoFrameExtractor(QObject *parent) :
 void VideoFrameExtractor::setSource(const QString url)
 {
     DPTR_D(VideoFrameExtractor);
-    if (url == d.source)
+    if (url == d.source || url.startsWith("satip://"))
         return;
     d.source = url;
     d.has_video = true;

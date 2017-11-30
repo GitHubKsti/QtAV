@@ -131,6 +131,11 @@ public:
      */
     virtual bool isVariableSize() const { return false;}
     /*!
+     * \brief formatForced
+     * Return a format specifier if content format is known
+     */
+    virtual QString formatForced() const { return QString(); }
+    /*!
      * \brief setBufferSize
      * \param value <0: use default value
      */

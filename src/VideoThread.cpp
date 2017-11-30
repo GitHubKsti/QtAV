@@ -409,6 +409,10 @@ void VideoThread::run()
         if (!sync_audio && diff > 0) {
             // wait to dts reaches
             // d.force_fps>0: wait after decoded before deliver
+	    if (diff > 1) {
+		    qDebug("Video way too early?!\n");
+		    diff = 0.1;
+	    }
             if (d.force_fps <= 0)// || !qFuzzyCompare(d.clock->speed(), 1.0))
                 waitAndCheck(diff*1000UL, dts); // TODO: count decoding and filter time, or decode immediately but wait for display
             diff = 0; // TODO: can not change delay!

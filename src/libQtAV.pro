@@ -1,7 +1,7 @@
 TEMPLATE = lib
 MODULE_INCNAME = QtAV # for mac framework. also used in install_sdk.pro
 TARGET = QtAV
-QT += core gui
+QT += core gui network
 #CONFIG *= ltcg
 greaterThan(QT_MAJOR_VERSION, 4) {
   contains(QT_CONFIG, opengl) {
@@ -480,6 +480,7 @@ SOURCES += \
     VideoFrame.cpp \
     io/MediaIO.cpp \
     io/QIODeviceIO.cpp \
+    io/SatIPIO.cpp \
     output/audio/AudioOutput.cpp \
     output/audio/AudioOutputBackend.cpp \
     output/audio/AudioOutputNull.cpp \

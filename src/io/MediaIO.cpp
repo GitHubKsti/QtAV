@@ -33,6 +33,8 @@ FACTORY_DEFINE(MediaIO)
 extern bool RegisterMediaIOQIODevice_Man();
 extern bool RegisterMediaIOQFile_Man();
 extern bool RegisterMediaIOWinRT_Man();
+extern bool RegisterMediaIOSatIP_Man();
+
 void MediaIO::registerAll()
 {
     static bool done = false;
@@ -41,6 +43,7 @@ void MediaIO::registerAll()
     done = true;
     RegisterMediaIOQIODevice_Man();
     RegisterMediaIOQFile_Man();
+    RegisterMediaIOSatIP_Man();
 #ifdef Q_OS_WINRT
     RegisterMediaIOWinRT_Man();
 #endif

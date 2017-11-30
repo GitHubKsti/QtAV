@@ -275,6 +275,7 @@ list(APPEND SOURCES
     VideoFrame.cpp
     io/MediaIO.cpp
     io/QIODeviceIO.cpp
+    io/SatIPIO.cpp
     output/audio/AudioOutput.cpp
     output/audio/AudioOutputBackend.cpp
     output/audio/AudioOutputNull.cpp
@@ -482,7 +483,7 @@ list(REMOVE_DUPLICATES EXTRA_LIBS)
 # qt5_use_modules(since 2.8.9) is deprecated since cmake 2.8.11
 target_link_libraries(${MODULE} 
   LINK_PRIVATE ${EXTRA_LIBS}
-  LINK_PUBLIC Qt5::Core Qt5::Gui # will add include dirs, macros etc.
+  LINK_PUBLIC Qt5::Core Qt5::Gui Qt5::Network # will add include dirs, macros etc.
 )
 set_target_properties(${MODULE} PROPERTIES
   MACOSX_RPATH ON

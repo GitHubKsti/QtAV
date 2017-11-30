@@ -246,6 +246,7 @@ public:
                 || file.startsWith(QLatin1String("ffrtmp")) //ffrtmpcrypt, ffrtmphttp
                 || file.startsWith(QLatin1String("rtp:"))
                 || file.startsWith(QLatin1String("rtsp:"))
+                || file.startsWith(QLatin1String("satip:"))
                 || file.startsWith(QLatin1String("sctp:"))
                 || file.startsWith(QLatin1String("tcp:"))
                 || file.startsWith(QLatin1String("tls:"))
@@ -643,6 +644,7 @@ MediaIO* AVDemuxer::mediaIO() const
 bool AVDemuxer::setMedia(const QString &fileName)
 {
     if (d->input) {
+        //call deleteLater here because calling from another thread can produce problems
         delete d->input;
         d->input = 0;
     }
@@ -784,6 +786,11 @@ bool AVDemuxer::load()
         if (d->input->accessMode() == MediaIO::Write) {
             qWarning("wrong MediaIO accessMode. MUST be Read");
         }
+        QString inputFormat = d->input->formatForced();
+        if (!inputFormat.isEmpty()) {
+            d->input_format = av_find_input_format(inputFormat.toUtf8().constData());
+            qDebug() << "MediaIO forced format: " << inputFormat << "," << d->input_format;
+        }
         d->format_ctx->pb = (AVIOContext*)d->input->avioContext();
         d->format_ctx->flags |= AVFMT_FLAG_CUSTOM_IO;
         qDebug("avformat_open_input: d->format_ctx:'%p'..., MediaIO('%s'): %p", d->format_ctx, d->input->name().toUtf8().constData(), d->input);
@@ -809,20 +816,27 @@ bool AVDemuxer::load()
     //deprecated
     //if(av_find_stread->inputfo(d->format_ctx)<0) {
     //TODO: avformat_find_stread->inputfo is too slow, only useful for some video format
-    d->interrupt_hanlder->begin(InterruptHandler::FindStreamInfo);
-    ret = avformat_find_stream_info(d->format_ctx, NULL);
-    d->interrupt_hanlder->end();
 
-    if (ret < 0) {
-        setMediaStatus(InvalidMedia);
-        AVError::ErrorCode ec(AVError::ParseStreamError);
-        QString msg(tr("failed to find stream info"));
-        handleError(ret, &ec, msg);
-        qWarning() << "Can't find stream info: " << msg;
-        // context is ready. unloaded() will be emitted in unload()
-        if (mediaStatus() == LoadingMedia) //workaround for timeout but not interrupted
-            setMediaStatus(InvalidMedia);
-        return false;
+    /* Don't probe for mpegts input, it's useless */
+    /* Without avformat_find_stream_info there is no audio for dvbt2 because
+       the codec type is never set */
+    if (!(d->input_format && QString(d->input_format->name) == "mpegts"))
+    {
+      d->interrupt_hanlder->begin(InterruptHandler::FindStreamInfo);
+      ret = avformat_find_stream_info(d->format_ctx, NULL);
+      d->interrupt_hanlder->end();
+
+      if (ret < 0) {
+          setMediaStatus(InvalidMedia);
+          AVError::ErrorCode ec(AVError::ParseStreamError);
+          QString msg(tr("failed to find stream info"));
+          handleError(ret, &ec, msg);
+          qWarning() << "Can't find stream info: " << msg;
+          // context is ready. unloaded() will be emitted in unload()
+          if (mediaStatus() == LoadingMedia) //workaround for timeout but not interrupted
+              setMediaStatus(InvalidMedia);
+          return false;
+      }
     }
 
     if (!d->prepareStreams()) {
@@ -1261,14 +1275,20 @@ bool AVDemuxer::Private::setStream(AVDemuxer::StreamType st, int streamValue)
     //}
     bool index_valid = si->wanted_index >= 0 && si->wanted_index < streams->size();
     int s = AVERROR_STREAM_NOT_FOUND;
-    if (streamValue >= 0 || !index_valid) {
-        // or simply set s to streamValue if value is contained in streams?
-        s = av_find_best_stream(format_ctx
-                                , st == AudioStream ? AVMEDIA_TYPE_AUDIO
+    enum AVMediaType type = st == AudioStream ? AVMEDIA_TYPE_AUDIO
                                 : st == VideoStream ? AVMEDIA_TYPE_VIDEO
                                 : st == SubtitleStream ? AVMEDIA_TYPE_SUBTITLE
-                                : AVMEDIA_TYPE_UNKNOWN
-                                , streamValue, -1, NULL, 0); // streamValue -1 is ok
+                                : AVMEDIA_TYPE_UNKNOWN;
+
+    if (streamValue >= 0 || !index_valid) {
+        // or simply set s to streamValue if value is contained in streams?
+        s = av_find_best_stream(format_ctx, type, streamValue, -1, NULL, 0); // streamValue -1 is ok
+        if (s == AVERROR_STREAM_NOT_FOUND) {
+            /* Override - av_find_best_stream might skip audio streams with
+             * (yet) unknown channel count */
+            if (streamValue > 0 && streamValue < format_ctx->nb_streams)
+                s = streamValue;
+        }
     } else { //index_valid
         s = streams->at(si->wanted_index);
     }
