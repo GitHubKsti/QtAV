@@ -23,6 +23,8 @@
 #include <QtAV/AVPlayer.h>
 #include <QtAV/AudioOutput.h>
 #include <QtAV/VideoCapture.h>
+#include <QtAV/LibAVFilter.h>
+#include <QDebug>
 
 template<typename ID, typename T>
 static QStringList idsToNames(QVector<ID> ids) {
@@ -95,6 +97,21 @@ void QmlAVPlayer::classBegin()
     connect(mpPlayer->audio(), SIGNAL(muteChanged(bool)), SLOT(applyVolume()), Qt::DirectConnection);
 
     mVideoCodecs << QStringLiteral("FFmpeg");
+
+    foreach(QString info, QtAV::LibAVFilter::videoFilters())
+    {
+        qDebug() << info;
+        QtAV::LibAVFilter::filterDescription(info);
+    }
+//    LibAVFilterVideo* videoFilter = new LibAVFilterVideo(this);
+//    videoFilter->setEnabled(true);
+//    videoFilter->setOptions("yadif=deint=1");
+//    this->mpPlayer->installFilter(videoFilter);
+
+    foreach(Filter* filter, this->mpPlayer->videoFilters())
+    {
+        filter->dumpObjectInfo();
+    }
 
     m_metaData.reset(new MediaMetaData());
 
