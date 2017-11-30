@@ -851,7 +851,7 @@ qint64 AVPlayer::position() const
 void AVPlayer::setPosition(qint64 position)
 {
     // FIXME: strange things happen if seek out of eof
-    if (position > d->stop_position_norm)
+    if (!d->current_source.toString().startsWith(QLatin1String("flccat:")) && position > d->stop_position_norm)
         return;
     if (!isPlaying())
         return;
