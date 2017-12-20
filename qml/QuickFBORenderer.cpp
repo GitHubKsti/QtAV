@@ -20,6 +20,7 @@
 ******************************************************************************/
 
 #include "QmlAV/QuickFBORenderer.h"
+#include "QmlAV/FBORenderer.h"
 #include "QmlAV/QmlAVPlayer.h"
 #include "QtAV/AVPlayer.h"
 #include "QtAV/OpenGLVideo.h"
@@ -30,6 +31,9 @@
 #include <QtGui/QOpenGLFunctions>
 #include <QtGui/QOpenGLFramebufferObject>
 #include <QtQuick/QQuickWindow>
+#include <QtQuick/QSGSimpleTextureNode>
+
+#include <QDebug>
 // for dynamicgl. qglfunctions before qt5.3 does not have portable gl functions
 // use qt gl func if possible to avoid linking to opengl directly
 #if QT_VERSION >= QT_VERSION_CHECK(5, 3, 0)
@@ -42,25 +46,6 @@
 namespace QtAV {
 static const VideoRendererId VideoRendererId_QuickFBO = mkid::id32base36_4<'Q','F','B','O'>::value;
 FACTORY_REGISTER(VideoRenderer, QuickFBO, "QuickFBO")
-
-class FBORenderer : public QQuickFramebufferObject::Renderer
-{
-public:
-    FBORenderer(QuickFBORenderer* item) : m_item(item) {}
-    QOpenGLFramebufferObject* createFramebufferObject(const QSize &size) Q_DECL_OVERRIDE {
-        m_item->fboSizeChanged(size);
-        return QQuickFramebufferObject::Renderer::createFramebufferObject(size);
-    }
-    void render() Q_DECL_OVERRIDE {
-        Q_ASSERT(m_item);
-        m_item->renderToFbo(framebufferObject());
-    }
-    void synchronize(QQuickFramebufferObject *item) Q_DECL_OVERRIDE {
-        m_item = static_cast<QuickFBORenderer*>(item);
-    }
-private:
-    QuickFBORenderer *m_item;
-};
 
 class QuickFBORendererPrivate : public VideoRendererPrivate
 {
@@ -105,6 +90,20 @@ QuickFBORenderer::QuickFBORenderer(QQuickItem *parent)
     setPreferredPixelFormat(VideoFormat::Format_YUV420P);
 }
 
+QSGNode* QuickFBORenderer::updatePaintNode(QSGNode * node, UpdatePaintNodeData * data)
+{
+    QSGSimpleTextureNode* textureNode = dynamic_cast<QSGSimpleTextureNode*>(node);
+    if(textureNode != nullptr)
+    {
+        textureNode->markDirty(QSGNode::DirtyPropagationMask);
+    }
+    else
+    {
+        qInfo() << "something went fucking wrong with casting the node";
+    }
+    return QQuickFramebufferObject::updatePaintNode(node, data);
+}
+
 VideoRendererId QuickFBORenderer::id() const
 {
     return VideoRendererId_QuickFBO;
@@ -112,7 +111,9 @@ VideoRendererId QuickFBORenderer::id() const
 
 QQuickFramebufferObject::Renderer* QuickFBORenderer::createRenderer() const
 {
-    return new FBORenderer((QuickFBORenderer*)this);
+    FBORenderer* renderer = new FBORenderer((QuickFBORenderer*)this);
+    connect(this, SIGNAL(newFrameAvailable()), renderer, SLOT(onNewFrameAvailable()), Qt::QueuedConnection);
+    return renderer;
 }
 
 bool QuickFBORenderer::isSupported(VideoFormat::PixelFormat pixfmt) const
@@ -133,11 +134,30 @@ OpenGLVideo* QuickFBORenderer::opengl() const
 bool QuickFBORenderer::receiveFrame(const VideoFrame &frame)
 {
     DPTR_D(QuickFBORenderer);
+    static QElapsedTimer timer;
+    static long long count = 0;
+    static bool first = true;
+    if(first)
+    {
+        timer.start();
+        first = false;
+    }
+    count++;
+    qint64 elapsed = timer.elapsed();
+    double inSeconds = elapsed/1000.0;
+    double frequency = count/inSeconds;
+    if(inSeconds > 1.0)
+    {
+        timer.restart();
+        count = 0;
+        qInfo() << "Received Frame frequency:" << frequency;
+    }
     d.video_frame = frame;
     d.frame_changed = true;
 //    update();  // why update slow? because of calling in a different thread?
     //QMetaObject::invokeMethod(this, "update"); // slower than directly postEvent
-    QCoreApplication::postEvent(this, new QEvent(QEvent::User));
+    emit newFrameAvailable();
+    //QCoreApplication::postEvent(this, new QEvent(QEvent::User));
     return true;
 }
 
@@ -327,10 +347,23 @@ void QuickFBORenderer::fboSizeChanged(const QSize &size)
     d.setupAspectRatio();
 }
 
+void QuickFBORenderer::setVideoFrame(VideoFrame &frame)
+{
+    DPTR_D(QuickFBORenderer);
+    d.video_frame = frame;
+}
+
 void QuickFBORenderer::renderToFbo(QOpenGLFramebufferObject *fbo)
 {
     d_func().fbo = fbo;
+    QElapsedTimer durationTimer;
+    durationTimer.start();
     handlePaintEvent();
+    qint64 duration = durationTimer.elapsed();
+    if(duration > 1)
+    {
+        //qInfo() << "renderToFbo duration: " << duration;
+    }
 }
 
 QQmlListProperty<QuickVideoFilter> QuickFBORenderer::filters()
@@ -379,6 +412,27 @@ void QuickFBORenderer::drawBackground()
 void QuickFBORenderer::drawFrame()
 {
     DPTR_D(QuickFBORenderer);
+
+    static QElapsedTimer timer;
+    static long long count = 0;
+    static bool first = true;
+    if(first)
+    {
+        timer.start();
+        first = false;
+    }
+    count++;
+    qint64 elapsed = timer.elapsed();
+    double inSeconds = elapsed/1000.0;
+    double frequency = count/inSeconds;
+    if(inSeconds > 1.0)
+    {
+        timer.restart();
+        count = 0;
+        //qInfo() << "drawFrame frequency:" << frequency;
+    }
+    QElapsedTimer estimateTimer;
+    estimateTimer.start();
     d.fbo->bind();
     DYGL(glViewport(0, 0, d.fbo->width(), d.fbo->height()));
     if (!d.video_frame.isValid()) {
@@ -389,14 +443,46 @@ void QuickFBORenderer::drawFrame()
         d.glv.setCurrentFrame(d.video_frame);
         d.frame_changed = false;
     }
+    qint64 duration = estimateTimer.elapsed();
+    if(duration > 1)
+    {
+        //qDebug() << "drawFrame till render duration:" << estimateTimer.elapsed();
+    }
+    estimateTimer.restart();
     d.glv.render(QRectF(), realROI(), d.matrix);
+    duration = estimateTimer.elapsed();
+    if(duration > 1)
+    {
+        //qDebug() << "drawFrame render duration:" << estimateTimer.elapsed();
+    }
 }
 
 bool QuickFBORenderer::event(QEvent *e)
 {
     if (e->type() != QEvent::User)
         return QQuickFramebufferObject::event(e);
+
+    static QElapsedTimer timer;
+    static long long count = 0;
+    static bool first = true;
+    if(first)
+    {
+        timer.start();
+        first = false;
+    }
+    count++;
+    qint64 elapsed = timer.elapsed();
+    double inSeconds = elapsed/1000.0;
+    double frequency = count/inSeconds;
+    if(inSeconds > 1.0)
+    {
+        timer.restart();
+        count = 0;
+        qInfo() << "QEvent frequency:" << frequency;
+    }
+    setFlag(ItemHasContents, true);
     update();
+
     return true;
 }
 

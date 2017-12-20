@@ -185,14 +185,14 @@ bool AudioResamplerFF::prepare()
     av_opt_set_int(d.context, "out_sample_rate",       d.out_format.sampleRate(), 0);
     av_opt_set_sample_fmt(d.context, "out_sample_fmt", (enum AVSampleFormat)out_format.sampleFormatFFmpeg(), 0);
     */
-    qDebug("out: {cl: %lld, fmt: %s, freq: %d}"
-           , d.out_format.channelLayoutFFmpeg()
-           , qPrintable(d.out_format.sampleFormatName())
-           , d.out_format.sampleRate());
-    qDebug("in {cl: %lld, fmt: %s, freq: %d}"
-           , d.in_format.channelLayoutFFmpeg()
-           , qPrintable(d.in_format.sampleFormatName())
-           , d.in_format.sampleRate());
+//    qDebug("out: {cl: %lld, fmt: %s, freq: %d}"
+//           , d.out_format.channelLayoutFFmpeg()
+//           , qPrintable(d.out_format.sampleFormatName())
+//           , d.out_format.sampleRate());
+//    qDebug("in {cl: %lld, fmt: %s, freq: %d}"
+//           , d.in_format.channelLayoutFFmpeg()
+//           , qPrintable(d.in_format.sampleFormatName())
+//           , d.in_format.sampleRate());
 
     if (!d.context) {
         qWarning("Allocat swr context failed!");

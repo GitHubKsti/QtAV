@@ -25,13 +25,14 @@
 
 #include "AVThread.h"
 #include <QtCore/QSize>
+#include "codec/AVDecoderFFmpeg.h"
 
 namespace QtAV {
 
 class VideoCapture;
 class VideoFrame;
 class VideoThreadPrivate;
-class VideoThread : public AVThread
+class VideoThread : public AVThread, public AVDecoderFFmpeg::AVDecoderFFmpegListener
 {
     Q_OBJECT
     DPTR_DECLARE_PRIVATE(VideoThread)
@@ -56,7 +57,19 @@ protected:
     // deliver video frame to video renderers. frame may be converted to a suitable format for renderer
     bool deliverVideoFrame(VideoFrame &frame);
     virtual void run();
+    virtual void onNewFrameAvailable(QtAV::Frame& frame, AVPacket& pkt);
+
     // wait for value msec. every usleep is a small time, then process next task and get new delay
+
+    qint32 seek_count; // wm4 says: 1st seek can not use frame drop for decoder
+    bool skip_render;
+    bool seeking;
+    qint64 start_time;
+    qreal v_a;
+    qint64 last_deliver_time ;
+    int sync_id;
+
+
 };
 
 

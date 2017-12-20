@@ -71,7 +71,6 @@ public:
      */
     void setOptions(const QVariantHash &dict);
     QVariantHash options() const;
-
 Q_SIGNALS:
     void error(const QtAV::AVError& e); //explictly use QtAV::AVError in connection for Qt4 syntax
     void descriptionChanged();

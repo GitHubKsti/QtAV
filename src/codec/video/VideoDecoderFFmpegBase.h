@@ -25,17 +25,21 @@
 #include "QtAV/VideoDecoder.h"
 #include "QtAV/private/AVDecoder_p.h"
 #include "QtAV/private/AVCompat.h"
+#include "codec/AVDecoderFFmpeg.h"
 
 namespace QtAV {
 
 class VideoDecoderFFmpegBasePrivate;
-class VideoDecoderFFmpegBase : public VideoDecoder
+class VideoDecoderFFmpegBase : public VideoDecoder, public AVDecoderFFmpeg
 {
     Q_DISABLE_COPY(VideoDecoderFFmpegBase)
     DPTR_DECLARE_PRIVATE(VideoDecoderFFmpegBase)
 public:
     virtual bool decode(const Packet& packet) Q_DECL_OVERRIDE;
+    void processFrame(AVFrame* frame, int currentDecodeReturnValue, AVPacket* packet) Q_DECL_OVERRIDE;
+
     virtual VideoFrame frame() Q_DECL_OVERRIDE;
+    virtual VideoFrame frame(AVFrame* frame);
 protected:
     VideoDecoderFFmpegBase(VideoDecoderFFmpegBasePrivate &d);
 private:

@@ -49,7 +49,7 @@ AVClock::AVClock(QObject *parent):
     QObject(parent)
   , auto_clock(true)
   , m_state(kStopped)
-  , clock_type(AudioClock)
+  , clock_type(VideoClock)
   , mSpeed(1.0)
   , value0(0)
   , avg_err(0)
@@ -64,7 +64,7 @@ void AVClock::setClockType(ClockType ct)
 {
     if (clock_type == ct)
         return;
-    clock_type = ct;
+    clock_type = VideoClock;
     QTimer::singleShot(0, this, SLOT(restartCorrectionTimer()));
 }
 

@@ -23,22 +23,25 @@
 #define QAV_AUDIOTHREAD_H
 
 #include "AVThread.h"
+#include "QtAV/AudioFrame.h"
+#include "codec/AVDecoderFFmpeg.h"
 
 namespace QtAV {
 
 class AudioDecoder;
-class AudioFrame;
 class AudioThreadPrivate;
-class AudioThread : public AVThread
+class AudioThread : public AVThread, public AVDecoderFFmpeg::AVDecoderFFmpegListener
 {
     Q_OBJECT
     DPTR_DECLARE_PRIVATE(AudioThread)
 public:
     explicit AudioThread(QObject *parent = 0);
-
 protected:
     void applyFilters(AudioFrame& frame);
+    virtual void onNewFrameAvailable(Frame& frame, AVPacket& pkt);
     virtual void run();
+
+    int sync_id;
 };
 
 } //namespace QtAV

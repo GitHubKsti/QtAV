@@ -361,7 +361,7 @@ bool AVThread::waitForStarted(int msec)
     return true;
 }
 
-void AVThread::waitAndCheck(ulong value, qreal pts)
+void AVThread::waitAndCheck(qreal value, qreal pts)
 {
     DPTR_D(AVThread);
     if (value <= 0)

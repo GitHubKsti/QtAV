@@ -209,7 +209,7 @@ void AVPlayer::Private::applyFrameRate()
             r = qAbs(qreal(vfps))/statistics.video.frame_rate;
     } else {
         clock->setClockAuto(true);
-        clock->setClockType(athread ? AVClock::AudioClock : AVClock::ExternalClock);
+        clock->setClockType(athread ? AVClock::VideoClock : AVClock::VideoClock);
         if (vthread)
             vthread->setFrameRate(0.0);
         ao->setSpeed(1);

@@ -90,6 +90,9 @@ public:
     bool isOpenGL() const;
     void setOpenGL(bool o);
     void fboSizeChanged(const QSize& size);
+    void setVideoFrame(VideoFrame& frame);
+    QSGNode* updatePaintNode(QSGNode *, UpdatePaintNodeData *) Q_DECL_OVERRIDE;
+
     void renderToFbo(QOpenGLFramebufferObject *fbo);
 
     QQmlListProperty<QuickVideoFilter> filters();
@@ -107,6 +110,7 @@ Q_SIGNALS:
     void contrastChanged(qreal) Q_DECL_OVERRIDE;
     void hueChanged(qreal) Q_DECL_OVERRIDE;
     void saturationChanged(qreal) Q_DECL_OVERRIDE;
+    void newFrameAvailable();
 protected:
     bool event(QEvent *e) Q_DECL_OVERRIDE;
     bool receiveFrame(const VideoFrame &frame) Q_DECL_OVERRIDE;

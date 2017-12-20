@@ -111,6 +111,49 @@ VideoDecoderFFmpegBase::VideoDecoderFFmpegBase(VideoDecoderFFmpegBasePrivate &d)
 {
 }
 
+////returns the number of decoded bytes
+//int VideoDecoderFFmpegBase::decode(AVCodecContext *avctx, AVFrame *frame, int *got_frame, AVPacket *pkt)
+//{
+//    //do this to buffer the last frames
+//    int ret;
+
+//    *got_frame = 0;
+
+//    if (pkt) {
+//        ret = avcodec_send_packet(avctx, pkt);
+//        if( ret != 0 && ret != AVERROR(EAGAIN) )
+//        {
+//            if (ret == AVERROR(ENOMEM) || ret == AVERROR(EINVAL))
+//            {
+//                qInfo("avcodec_send_packet critical error");
+//            }
+//            avcodec_flush_buffers( avctx );
+//            return 0;
+//        }
+
+//    }
+//    ret = avcodec_receive_frame(avctx, frame);
+//    if( ret != 0 && ret != AVERROR(EAGAIN) )
+//    {
+//        if (ret == AVERROR(ENOMEM) || ret == AVERROR(EINVAL))
+//        {
+//            qInfo("avcodec_receive_frame critical error");
+//            *got_frame = 0;
+//        }
+//        av_frame_free(&frame);
+//        /* After draining, we need to reset decoder with a flush */
+//        if( ret == AVERROR_EOF )
+//            avcodec_flush_buffers( avctx );
+//        return 0;
+//    }
+//    else if(ret < 0)
+//    {
+//        qInfo("unhandled decoding error");
+//    }
+//    *got_frame = 1;
+//    return pkt->size;
+//}
+
 bool VideoDecoderFFmpegBase::decode(const Packet &packet)
 {
     if (!isAvailable())
@@ -125,42 +168,71 @@ bool VideoDecoderFFmpegBase::decode(const Packet &packet)
         av_init_packet(&eofpkt);
         eofpkt.data = NULL;
         eofpkt.size = 0;
-        ret = avcodec_decode_video2(d.codec_ctx, d.frame, &got_frame_ptr, &eofpkt);
+        ret = AVDecoderFFmpeg::decode(d.codec_ctx, &eofpkt);
     } else {
-        ret = avcodec_decode_video2(d.codec_ctx, d.frame, &got_frame_ptr, (AVPacket*)packet.asAVPacket());
+        ret = AVDecoderFFmpeg::decode(d.codec_ctx, (AVPacket*)packet.asAVPacket());
     }
     //qDebug("pic_type=%c", av_get_picture_type_char(d.frame->pict_type));
-    d.undecoded_size = qMin(packet.data.size() - ret, packet.data.size());
-    if (ret < 0) {
-        //qWarning("[VideoDecoderFFmpegBase] %s", av_err2str(ret));
+    d.undecoded_size = 0;//qMin(packet.data.size() - ret, packet.data.size());
+    if(ret < 0)
+    {
+        qInfo("wrong video decoding");
         return false;
     }
-    if (!got_frame_ptr) {
-        qWarning("no frame could be decompressed: %s %d/%d", av_err2str(ret), d.undecoded_size, packet.data.size());
-        return !packet.isEOF();
-    }
-    if (!d.codec_ctx->width || !d.codec_ctx->height)
-        return false;
-    //qDebug("codec %dx%d, frame %dx%d", d.codec_ctx->width, d.codec_ctx->height, d.frame->width, d.frame->height);
-    d.width = d.frame->width; // TODO: remove? used in hwdec
-    d.height = d.frame->height;
-    //avcodec_align_dimensions2(d.codec_ctx, &d.width_align, &d.height_align, aligns);
+
     return true;
+//    if (ret < 0) {
+//        //qWarning("[VideoDecoderFFmpegBase] %s", av_err2str(ret));
+//        return false;
+//    }
+//    if (!got_frame_ptr) {
+//        qWarning("no frame could be decompressed: %s %d/%d", av_err2str(ret), d.undecoded_size, packet.data.size());
+//        return !packet.isEOF();
+//    }
+//    if (!d.codec_ctx->width || !d.codec_ctx->height)
+//        return false;
+//    //qDebug("codec %dx%d, frame %dx%d", d.codec_ctx->width, d.codec_ctx->height, d.frame->width, d.frame->height);
+//    d.width = d.frame->width; // TODO: remove? used in hwdec
+//    d.height = d.frame->height;
+//    //avcodec_align_dimensions2(d.codec_ctx, &d.width_align, &d.height_align, aligns);
+    //    return true;
+}
+
+void VideoDecoderFFmpegBase::processFrame(AVFrame *fmt, int currentDecodeReturnValue, AVPacket *packet)
+{
+    Q_UNUSED(currentDecodeReturnValue);
+
+    DPTR_D(VideoDecoderFFmpegBase);
+
+    d.width = fmt->width; // TODO: remove? used in hwdec
+    d.height = fmt->height;
+    //d.frame = fmt;
+    if(_listener)
+    {
+        VideoFrame videoFrame = frame(fmt);
+        _listener->onNewFrameAvailable(videoFrame,*packet);
+    }
 }
 
 VideoFrame VideoDecoderFFmpegBase::frame()
 {
     DPTR_D(VideoDecoderFFmpegBase);
-    if (d.frame->width <= 0 || d.frame->height <= 0 || !d.codec_ctx)
+    return frame(d.frame);
+}
+
+VideoFrame VideoDecoderFFmpegBase::frame(AVFrame* avFrame)
+{
+    DPTR_D(VideoDecoderFFmpegBase);
+    if (avFrame->width <= 0 || avFrame->height <= 0 || !d.codec_ctx)
         return VideoFrame();
     // it's safe if width, height, pixfmt will not change, only data change
-    VideoFrame frame(d.frame->width, d.frame->height, VideoFormat((int)d.codec_ctx->pix_fmt));
-    frame.setDisplayAspectRatio(d.getDAR(d.frame));
-    frame.setBits(d.frame->data);
-    frame.setBytesPerLine(d.frame->linesize);
+    VideoFrame frame(avFrame->width, avFrame->height, VideoFormat((int)d.codec_ctx->pix_fmt));
+    frame.setDisplayAspectRatio(d.getDAR(avFrame));
+    frame.setBits(avFrame->data);
+    frame.setBytesPerLine(avFrame->linesize);
     // in s. TODO: what about AVFrame.pts? av_frame_get_best_effort_timestamp? move to VideoFrame::from(AVFrame*)
-    frame.setTimestamp((double)d.frame->pkt_pts/1000.0);
-    frame.setMetaData(QStringLiteral("avbuf"), QVariant::fromValue(AVFrameBuffersRef(new AVFrameBuffers(d.frame))));
+    frame.setTimestamp((double)avFrame->pkt_pts/1000.0);
+    frame.setMetaData(QStringLiteral("avbuf"), QVariant::fromValue(AVFrameBuffersRef(new AVFrameBuffers(avFrame))));
     d.updateColorDetails(&frame);
     if (frame.format().hasPalette()) {
         frame.setMetaData(QStringLiteral("pallete"), QByteArray((const char*)d.frame->data[1], 256*4));

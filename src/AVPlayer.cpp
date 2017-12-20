@@ -80,7 +80,6 @@ AVPlayer::AVPlayer(QObject *parent) :
      * If close the d->vo widget, the the d->vo may destroy before waking up.
      */
     connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(aboutToQuitApp()));
-    //d->clock->setClockType(AVClock::ExternalClock);
     connect(&d->demuxer, SIGNAL(started()), masterClock(), SLOT(start()));
     connect(&d->demuxer, SIGNAL(error(QtAV::AVError)), this, SIGNAL(error(QtAV::AVError)));
     connect(&d->demuxer, SIGNAL(mediaStatusChanged(QtAV::MediaStatus)), this, SLOT(updateMediaStatus(QtAV::MediaStatus)), Qt::DirectConnection);
@@ -1218,7 +1217,7 @@ void AVPlayer::playInternal()
     if (masterClock()->isClockAuto()) {
         qDebug("auto select clock: audio > external");
         if (!d->demuxer.audioCodecContext() || !d->ao || !d->ao->isOpen() || !d->athread) {
-            masterClock()->setClockType(AVClock::ExternalClock);
+            masterClock()->setClockType(AVClock::VideoClock);
             qDebug("No audio found or audio not supported. Using ExternalClock.");
         } else {
             qDebug("Using AudioClock");

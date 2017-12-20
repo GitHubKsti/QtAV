@@ -448,6 +448,7 @@ SOURCES += \
     AudioFrame.cpp \
     AudioResampler.cpp \
     AudioResamplerTemplate.cpp \
+    codec/AVDecoderFFmpeg.cpp \
     codec/audio/AudioDecoder.cpp \
     codec/audio/AudioDecoderFFmpeg.cpp \
     codec/audio/AudioEncoder.cpp \
@@ -591,7 +592,8 @@ HEADERS *= \
     utils/ring.h \
     utils/internal.h \
     output/OutputSet.h \
-    ColorTransform.h
+    ColorTransform.h \
+    codec/AVDecoderFFmpeg.h
 # from mkspecs/features/qt_module.prf
 # OS X and iOS frameworks
 mac_framework { # from common.pri
