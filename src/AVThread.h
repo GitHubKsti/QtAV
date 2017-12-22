@@ -109,7 +109,7 @@ protected:
     bool tryPause(unsigned long timeout = 100);
     bool processNextTask(); //in AVThread
     // pts > 0: compare pts and clock when waiting
-    void waitAndCheck(ulong value, qreal pts);
+    void waitAndCheck(qreal value, qreal pts);
 
     DPTR_DECLARE(AVThread)
 private:
