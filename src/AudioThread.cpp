@@ -190,7 +190,7 @@ void AudioThread::run()
             pkt = Packet(); //mark invalid to take next
             continue;
         }
-        const bool is_external_clock = d.clock->clockType() == AVClock::ExternalClock;
+        const bool is_external_clock = d.clock->clockType() == AVClock::ExternalClock || d.clock->clockType() == AVClock::VideoClock;
         if (is_external_clock && !pkt.isEOF()) {
             d.delay = dts - d.clock->value();
             /*
@@ -206,7 +206,10 @@ void AudioThread::run()
                     continue;
                 }
                 if (d.delay > 0)
-                    waitAndCheck(d.delay, dts);
+                {
+                    qDebug("audio is fast compared with external clock. Wait a bit. %.3f-%.3f=%.3f", dts, d.clock->value(), d.delay);
+                    waitAndCheck(d.delay*1000.0, dts);
+                }
             } else { //when to drop off?
                 if (d.delay > 0) {
                     msleep(64);
