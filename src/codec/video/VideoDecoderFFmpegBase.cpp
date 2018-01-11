@@ -159,7 +159,27 @@ VideoFrame VideoDecoderFFmpegBase::frame()
     frame.setBits(d.frame->data);
     frame.setBytesPerLine(d.frame->linesize);
     // in s. TODO: what about AVFrame.pts? av_frame_get_best_effort_timestamp? move to VideoFrame::from(AVFrame*)
-    frame.setTimestamp((double)d.frame->pkt_pts/1000.0);
+    //frame.setTimestamp((double)d.frame->pkt_pts/1000.0);
+
+    int64_t pts = 0;
+    double time_base = av_q2d(d.codec_ctx->time_base);
+
+    if((double)d.frame->pkt_pts != AV_NOPTS_VALUE) {
+      pts = av_frame_get_best_effort_timestamp(d.frame);
+    } else {
+      pts = 0;
+    }
+    //qDebug() << "PTS Frame No is" << pts;
+    //qDebug() << "Time Base is" << time_base;
+
+    double pts_ts = time_base * pts;
+    //qDebug() << "PTS TS is" << pts_ts;
+
+
+    //TODO repeat_pict is zero and that seems ok according to FFmpeg API docs. Why does the tutorial handle this differently?
+    double repeat_offset = 1;//time_base * d.frame->repeat_pict;
+    frame.setTimestamp(pts_ts * repeat_offset);
+
     frame.setMetaData(QStringLiteral("avbuf"), QVariant::fromValue(AVFrameBuffersRef(new AVFrameBuffers(d.frame))));
     d.updateColorDetails(&frame);
     if (frame.format().hasPalette()) {
