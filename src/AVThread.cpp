@@ -361,38 +361,69 @@ bool AVThread::waitForStarted(int msec)
     return true;
 }
 
+/**
+ * @brief AVThread::waitAndCheck
+ * @param value time  difference to wait in units of time_base 1/0.02*1000 seconds (needs to be dynamic)
+ * @param pts clock timestamp  in units of time_base 1/0.02*1000 seconds (needs to be dynamic)
+ */
 void AVThread::waitAndCheck(qreal value, qreal pts)
 {
+    //TODO receive mpeg timebase via param
+    //Since MPEG timebase is 0.02 (0.02 seconds between to frames) we have to correct our timestamps by 0.02 * 1000
+    const qreal timeBetweenFramesInMs=0.02*1000;
+    value = value * timeBetweenFramesInMs;
+    pts = pts * timeBetweenFramesInMs;
+
     DPTR_D(AVThread);
-    if (value <= 0)
+    if (value <= 0) {
         return;
+    }
+
+    //TODO investigate what time_err does
     value += d.wait_err;
+
+    //qDebug() << "Restart Timer";
     d.wait_timer.restart();
     //qDebug("wating for %lu msecs", value);
+    qDebug() << "waiting for" << value << "msecs";
     ulong us = value * 1000UL;
     const ulong ms = value;
+
+    //If we have to wait longer than 20ms, only sleep for 20ms repeatedly and allow stopping
+    //or processNextTask() to avoid deadlock
     static const ulong kWaitSlice = 20 * 1000UL; //20ms
     while (us > kWaitSlice) {
+        //qDebug() << "Sleep1: Sleep for" << kWaitSlice;
         usleep(kWaitSlice);
         if (d.stop)
             us = 0;
         else
             us -= kWaitSlice;
-        if (pts > 0)
-            us = qMin(us, ulong((double)(qMax<qreal>(0, pts - d.clock->value()))*1000000.0));
+        if (pts > 0) {
+
+            qreal clock = d.clock->value() * timeBetweenFramesInMs;
+            //Is the next line really needed?
+            us = qMin(us, ulong((double)(qMax<qreal>(0, pts - clock))*1000.0));
+        }
         //qDebug("us: %lu/%lu, pts: %f, clock: %f", us, ms-et.elapsed(), pts, d.clock->value());
         processNextTask();
+        //TODO: What is next line for
         us = qMin<ulong>(us, (ms-d.wait_timer.elapsed())*1000);
+        //qDebug() << "While end - us is:" << us;
     }
-    if (us > 0)
+    if (us > 0) {
+        //qDebug() << "Sleep2: Sleep for" << us;
         usleep(us);
+    }
     //qDebug("wait elapsed: %lu %d/%lld", us, ms, et.elapsed());
+
+
     const int de = ((ms-d.wait_timer.elapsed()) - d.wait_err);
     if (de > -3 && de < 3)
         d.wait_err += de;
     else
         d.wait_err += de > 0 ? 1 : -1;
-    //qDebug("err: %lld", d.wait_err);
+    qDebug("err: %lld", d.wait_err);
 }
 
 } //namespace QtAV

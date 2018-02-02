@@ -162,17 +162,23 @@ VideoFrame VideoDecoderFFmpegBase::frame()
     //frame.setTimestamp((double)d.frame->pkt_pts/1000.0);
 
     int64_t pts = 0;
-    double time_base = av_q2d(d.codec_ctx->time_base);
+    //double time_base = av_q2d(d.codec_ctx->time_base);
 
+    //Get PTS in units of time_base d.codec_ctx->time_base
     if((double)d.frame->pkt_pts != AV_NOPTS_VALUE) {
       pts = av_frame_get_best_effort_timestamp(d.frame);
     } else {
       pts = 0;
     }
-    //qDebug() << "PTS Frame No is" << pts;
-    //qDebug() << "Time Base is" << time_base;
+    qDebug() << "Original PTS is" << pts;
+    qDebug() << "Time Base is" << av_q2d(d.codec_ctx->time_base);
 
-    double pts_ts = time_base * pts;
+    //double pts_ts = time_base * pts;
+    //int64_t pts_ts = av_rescale_q(pts, d.codec_ctx->time_base, av_get_time_base_q());
+
+    //Division by 1000 needed to match external clock's order of magnitude
+    qreal pts_ts = (qreal)pts / 1000;
+
     //qDebug() << "PTS TS is" << pts_ts;
 
 

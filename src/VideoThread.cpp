@@ -264,8 +264,11 @@ void VideoThread::run()
         qDebug() << "Clock TS is" << d.clock->value();
 
         if(d.clock->value() != 0) {
-            qreal diff = frame.timestamp() - d.clock->value(); //+ v_a;
-            waitAndCheck(diff, frame.timestamp());
+            //qreal diff = frame.timestamp() - d.clock->value(); //+ v_a;
+            qreal clock = d.clock->value();// * time_base;
+            qreal ts = frame.timestamp();// * time_base;
+            qreal diff = ts - clock; //+ v_a;
+            waitAndCheck(diff, ts);
         }
         d.clock->updateVideoTime(frame.timestamp());
 
