@@ -162,7 +162,7 @@ VideoFrame VideoDecoderFFmpegBase::frame()
     //frame.setTimestamp((double)d.frame->pkt_pts/1000.0);
 
     int64_t pts = 0;
-    //double time_base = av_q2d(d.codec_ctx->time_base);
+    double time_base = av_q2d(d.codec_ctx->time_base);
 
     //Get PTS in units of time_base d.codec_ctx->time_base
     if((double)d.frame->pkt_pts != AV_NOPTS_VALUE) {
@@ -177,14 +177,12 @@ VideoFrame VideoDecoderFFmpegBase::frame()
     //int64_t pts_ts = av_rescale_q(pts, d.codec_ctx->time_base, av_get_time_base_q());
 
     //Division by 1000 needed to match external clock's order of magnitude
-    qreal pts_ts = (qreal)pts / 1000;
-
     //qDebug() << "PTS TS is" << pts_ts;
 
 
     //TODO repeat_pict is zero and that seems ok according to FFmpeg API docs. Why does the tutorial handle this differently?
-    double repeat_offset = 1;//time_base * d.frame->repeat_pict;
-    frame.setTimestamp(pts_ts * repeat_offset);
+    double repeat_offset = d.frame->repeat_pict * (time_base * 0.5);//time_base * d.frame->repeat_pict;
+    frame.setTimestamp((double)(pts*time_base + repeat_offset));
 
     frame.setMetaData(QStringLiteral("avbuf"), QVariant::fromValue(AVFrameBuffersRef(new AVFrameBuffers(d.frame))));
     d.updateColorDetails(&frame);

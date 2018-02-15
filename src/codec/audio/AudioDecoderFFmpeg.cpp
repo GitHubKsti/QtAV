@@ -143,6 +143,7 @@ AudioFrame AudioDecoderFFmpeg::frame()
     f.setBytesPerLine(d.frame->linesize[0], 0); // for correct alignment
     f.setSamplesPerChannel(d.frame->nb_samples);
     // TODO: ffplay check AVFrame.pts, pkt_pts, last_pts+nb_samples. move to AudioFrame::from(AVFrame*)
+    double time_base = av_q2d(d.codec_ctx->time_base);
     f.setTimestamp((double)d.frame->pkt_pts/1000.0);
     f.setAudioResampler(d.resampler); // TODO: remove. it's not safe if frame is shared. use a pool or detach if ref >1
     return f;

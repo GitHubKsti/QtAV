@@ -380,7 +380,7 @@ void AVThread::waitAndCheck(qreal value, qreal pts)
     }
 
     //TODO investigate what time_err does
-    value += d.wait_err;
+    //value += d.wait_err;
 
     //qDebug() << "Restart Timer";
     d.wait_timer.restart();
@@ -399,16 +399,16 @@ void AVThread::waitAndCheck(qreal value, qreal pts)
             us = 0;
         else
             us -= kWaitSlice;
-        if (pts > 0) {
+//        if (pts > 0) {
 
-            qreal clock = d.clock->value() * timeBetweenFramesInMs;
-            //Is the next line really needed?
-            us = qMin(us, ulong((double)(qMax<qreal>(0, pts - clock))*1000.0));
-        }
+//            qreal clock = d.clock->value() * timeBetweenFramesInMs;
+//            //Is the next line really needed?
+//            us = qMin(us, ulong((double)(qMax<qreal>(0, pts - clock))*1000.0));
+//        }
         //qDebug("us: %lu/%lu, pts: %f, clock: %f", us, ms-et.elapsed(), pts, d.clock->value());
         processNextTask();
         //TODO: What is next line for
-        us = qMin<ulong>(us, (ms-d.wait_timer.elapsed())*1000);
+        //us = qMin<ulong>(us, (ms-d.wait_timer.elapsed())*1000);
         //qDebug() << "While end - us is:" << us;
     }
     if (us > 0) {

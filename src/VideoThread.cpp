@@ -266,8 +266,16 @@ void VideoThread::run()
         if(d.clock->value() != 0) {
             //qreal diff = frame.timestamp() - d.clock->value(); //+ v_a;
             qreal clock = d.clock->value();// * time_base;
-            qreal ts = frame.timestamp();// * time_base;
+            qreal ts = frame.timestamp();// * time_base/1000;
             qreal diff = ts - clock; //+ v_a;
+            if(diff < 0)
+            {
+                qDebug() << "audio newer than video: " << diff;
+            }
+            else if (diff > 0)
+            {
+                qDebug() << "audio older than video: " << diff;
+            }
             waitAndCheck(diff, ts);
         }
         d.clock->updateVideoTime(frame.timestamp());
