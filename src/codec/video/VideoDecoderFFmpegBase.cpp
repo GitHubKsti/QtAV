@@ -170,8 +170,8 @@ VideoFrame VideoDecoderFFmpegBase::frame()
     } else {
       pts = 0;
     }
-    qDebug() << "Original PTS is" << pts;
-    qDebug() << "Time Base is" << av_q2d(d.codec_ctx->time_base);
+    //qDebug() << "Original PTS is" << pts;
+    //qDebug() << "Time Base is" << av_q2d(d.codec_ctx->time_base);
 
     //double pts_ts = time_base * pts;
     //int64_t pts_ts = av_rescale_q(pts, d.codec_ctx->time_base, av_get_time_base_q());

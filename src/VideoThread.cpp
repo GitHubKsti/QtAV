@@ -260,8 +260,8 @@ void VideoThread::run()
             qDebug("FRAME NOT VALID");
         }
 
-        qDebug() << "Frame TS is" << frame.timestamp();
-        qDebug() << "Clock TS is" << d.clock->value();
+        //qDebug() << "Frame TS is" << frame.timestamp();
+        //qDebug() << "Clock TS is" << d.clock->value();
 
         if(d.clock->value() != 0) {
             //qreal diff = frame.timestamp() - d.clock->value(); //+ v_a;
@@ -270,11 +270,11 @@ void VideoThread::run()
             qreal diff = ts - clock; //+ v_a;
             if(diff < 0)
             {
-                qDebug() << "audio newer than video: " << diff;
+                //qDebug() << "audio newer than video: " << diff;
             }
             else if (diff > 0)
             {
-                qDebug() << "audio older than video: " << diff;
+                //qDebug() << "audio older than video: " << diff;
             }
             waitAndCheck(diff, ts);
         }

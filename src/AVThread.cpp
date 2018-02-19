@@ -385,7 +385,7 @@ void AVThread::waitAndCheck(qreal value, qreal pts)
     //qDebug() << "Restart Timer";
     d.wait_timer.restart();
     //qDebug("wating for %lu msecs", value);
-    qDebug() << "waiting for" << value << "msecs";
+    //qDebug() << "waiting for" << value << "msecs";
     ulong us = value * 1000UL;
     const ulong ms = value;
 
@@ -423,7 +423,7 @@ void AVThread::waitAndCheck(qreal value, qreal pts)
         d.wait_err += de;
     else
         d.wait_err += de > 0 ? 1 : -1;
-    qDebug("err: %lld", d.wait_err);
+    //  qDebug("err: %lld", d.wait_err);
 }
 
 } //namespace QtAV
