@@ -240,53 +240,301 @@ bool VideoThread::deliverVideoFrame(VideoFrame &frame)
 void VideoThread::run()
 {
     DPTR_D(VideoThread);
-
     if (!d.dec || !d.dec->isAvailable() || !d.outputSet)
-            return;
-        resetState();
-
+        return;
+    resetState();
+    if (d.capture->autoSave()) {
+        d.capture->setCaptureName(QFileInfo(d.statistics->url).completeBaseName());
+    }
+    //not neccesary context is managed by filters.
+    d.filter_context = VideoFilterContext::create(VideoFilterContext::QtPainter);
     VideoDecoder *dec = static_cast<VideoDecoder*>(d.dec);
     Packet pkt;
+    QVariantHash *dec_opt = &d.dec_opt_normal; //TODO: restore old framedrop option after seek
+    /*!
+     * if we skip some frames(e.g. seek, drop frames to speed up), then then first frame to decode must
+     * be a key frame for hardware decoding. otherwise may crash
+     */
+    bool wait_key_frame = false;
+    int nb_dec_slow = 0;
 
-    d.filter_context = VideoFilterContext::create(VideoFilterContext::QtPainter);
-
+    qint32 seek_count = 0; // wm4 says: 1st seek can not use frame drop for decoder
+    // TODO: kNbSlowSkip depends on video fps, ensure slow time <= 2s
+    /* kNbSlowSkip: if video frame slow count >= kNbSlowSkip, skip decoding all frames until next keyframe reaches.
+     * if slow count > kNbSlowSkip/2, skip rendering every 3 or 6 frames
+     */
+    const int kNbSlowSkip = 20;
+    // kNbSlowFrameDrop: if video frame slow count > kNbSlowFrameDrop, skip decoding nonref frames. only some of ffmpeg based decoders support it.
+    const int kNbSlowFrameDrop = 10;
+    bool sync_audio = d.clock->clockType() == AVClock::AudioClock;
+    bool sync_video = d.clock->clockType() == AVClock::VideoClock; // no frame drop
+    const qint64 start_time = QDateTime::currentMSecsSinceEpoch();
+    int nb_no_pts = 0;
+    //bool wait_audio_drain
+    const char* pkt_data = NULL; // workaround for libav9 decode fail but error code >= 0
+    qint64 last_deliver_time = 0;
+    int sync_id = 0;
     while (!d.stop) {
         processNextTask();
-        pkt = d.packets.take();
-        dec->decode(pkt);
+        //TODO: why put it at the end of loop then stepForward() not work?
+        //processNextTask tryPause(timeout) and  and continue outter loop
+        if (d.render_pts0 < 0) { // no pause when seeking
+            if (tryPause()) { //DO NOT continue, or stepForward() will fail
 
-        VideoFrame frame = dec->frame();
-        if(!frame.isValid()) {
-            qDebug("FRAME NOT VALID");
+            } else {
+                if (isPaused())
+                    continue; //timeout. process pending tasks
+            }
+        }
+        if (d.seek_requested) {
+            d.seek_requested = false;
+            qDebug("request seek video thread");
+            pkt = Packet(); // last decode failed and pkt is valid, reset pkt to force take the next packet if seek is requested
+            msleep(1);
+        } else {
+            // d.render_pts0 < 0 means seek finished here
+            if (d.clock->syncId() > 0) {
+                qDebug("video thread wait to sync end for sync id: %d", d.clock->syncId());
+                if (d.render_pts0 < 0 && sync_id > 0) {
+                    msleep(10);
+                    continue;
+                }
+            } else {
+                sync_id = 0;
+            }
+        }
+        if(!pkt.isValid() && !pkt.isEOF()) { // can't seek back if eof packet is read
+            pkt = d.packets.take(); //wait to dequeue
+           // TODO: push pts history here and reorder
+        }
+        if (pkt.isEOF()) {
+            wait_key_frame = false;
+            qDebug("video thread gets an eof packet.");
+        } else {
+            //qDebug() << pkt.position << " pts:" <<pkt.pts;
+            //Compare to the clock
+            if (!pkt.isValid()) {
+                // may be we should check other information. invalid packet can come from
+                wait_key_frame = true;
+                qDebug("Invalid packet! flush video codec context!!!!!!!!!! video packet queue size: %d", d.packets.size());
+                d.dec->flush(); //d.dec instead of dec because d.dec maybe changed in processNextTask() but dec is not
+                d.render_pts0 = pkt.pts;
+                sync_id = pkt.position;
+                if (pkt.pts >= 0)
+                    qDebug("video seek: %.3f, id: %d", d.render_pts0, sync_id);
+                d.pts_history = ring<qreal>(d.pts_history.capacity());
+                continue;
+            }
+        }
+        if (pkt.pts <= 0 && !pkt.isEOF() && pkt.data.size() > 0) {
+            nb_no_pts++;
+        } else {
+            nb_no_pts = 0;
+        }
+        if (nb_no_pts > 5) {
+            qDebug("the stream may have no pts. force fps to: %f/%f", d.force_fps < 0 ? -d.force_fps : 24, d.force_fps);
+            d.clock->setClockAuto(false);
+            d.clock->setClockType(AVClock::VideoClock);
+            if (d.force_fps < 0)
+                setFrameRate(-d.force_fps);
+            else if (d.force_fps == 0)
+                setFrameRate(24);
         }
 
-        //qDebug() << "Frame TS is" << frame.timestamp();
-        //qDebug() << "Clock TS is" << d.clock->value();
+        if (d.clock->clockType() == AVClock::AudioClock) {
+            sync_audio = true;
+            sync_video = false;
+        } else if (d.clock->clockType() == AVClock::VideoClock) {
+            sync_audio = false;
+            sync_video = true;
+        } else {
+            sync_audio = false;
+            sync_video = false;
+        }
+        bool seeking = d.render_pts0 >= 0.0;
+        if (seeking) {
+            nb_dec_slow = 0;
+        }
 
+        // can not change d.delay after! we need it to comapre to next loop
+        /*
+         *after seeking forward, a packet may be the old, v packet may be
+         *the new packet, then the d.delay is very large, omit it.
+        */
+
+        bool skip_render = false;
+
+        if (wait_key_frame) {
+            if (!pkt.hasKeyFrame) {
+                qDebug("waiting for key frame. queue size: %d. pkt.size: %d", d.packets.size(), pkt.data.size());
+                pkt = Packet();
+                continue;
+            }
+            wait_key_frame = false;
+        }
+        QVariantHash *dec_opt_old = dec_opt;
+        if (!seeking || pkt.pts - d.render_pts0 >= -0.05) { // MAYBE not seeking. We should not drop the frames near the seek target. FIXME: use packet pts distance instead of -0.05 (20fps)
+            if (seeking)
+                qDebug("seeking... pkt.pts - d.render_pts0: %.3f", pkt.pts - d.render_pts0);
+            if (nb_dec_slow < kNbSlowFrameDrop) {
+                if (dec_opt == &d.dec_opt_framedrop) {
+                    qDebug("frame drop=>normal. nb_dec_slow: %d", nb_dec_slow);
+                    dec_opt = &d.dec_opt_normal;
+                }
+            } else {
+                if (dec_opt == &d.dec_opt_normal) {
+                    qDebug("frame drop=>noref. nb_dec_slow: %d too slow", nb_dec_slow);
+                    dec_opt = &d.dec_opt_framedrop;
+                }
+            }
+        } else { // seeking
+            if (seek_count > 0 && d.drop_frame_seek) {
+                if (dec_opt == &d.dec_opt_normal) {
+                    qDebug("seeking... pkt.pts - d.render_pts0: %.3f, frame drop=>noref. nb_dec_slow: %d", pkt.pts - d.render_pts0, nb_dec_slow);
+                    dec_opt = &d.dec_opt_framedrop;
+                }
+            } else {
+                seek_count = -1;
+            }
+        }
+
+        // decoder maybe changed in processNextTask(). code above MUST use d.dec but not dec
+        if (dec != static_cast<VideoDecoder*>(d.dec)) {
+            dec = static_cast<VideoDecoder*>(d.dec);
+            if (!pkt.hasKeyFrame) {
+                wait_key_frame = true;
+                continue;
+            }
+            qDebug("decoder changed. decoding key frame");
+        }
+        if (dec_opt != dec_opt_old)
+            dec->setOptions(*dec_opt);
+
+        qreal clock = d.clock->value();// * time_base;
+        qreal ts = pkt.pts*0.02*1000.0;// * time_base*0.02;
+        qreal diff = ts - clock;
+        if (diff<0)
+        {
+            // ensure video will not later than 2s
+            if (diff < -2 || (nb_dec_slow > kNbSlowSkip && diff < -1.0 && !pkt.hasKeyFrame)) {
+                qDebug("video is too slow. skip decoding until next key frame.");
+                qDebug() << "skip decoding. Clock:" << clock << " ts:" << ts << " diff:" << diff;
+                // TODO: when to reset so frame drop flag can reset?
+                nb_dec_slow = 0;
+                wait_key_frame = true;
+                pkt = Packet();
+                // TODO: use discard flag
+                continue;
+            } else {
+                nb_dec_slow++;
+                qDebug("frame slow count: %d. v-a: %.3f", nb_dec_slow, diff);
+            }
+            continue;
+        }
+        if (!dec->decode(pkt)) {
+            d.pts_history.push_back(d.pts_history.back());
+            //qWarning("Decode video failed. undecoded: %d/%d", dec->undecodedSize(), pkt.data.size());
+            if (pkt.isEOF()) {
+                Q_EMIT eofDecoded();
+                qDebug("video decode eof done. d.render_pts0: %.3f", d.render_pts0);
+                if (d.render_pts0 >= 0) {
+                    qDebug("video seek done at eof pts: %.3f. id: %d", d.pts_history.back(), sync_id);
+                    d.render_pts0 = -1;
+                    d.clock->syncEndOnce(sync_id);
+                    Q_EMIT seekFinished(qint64(d.pts_history.back()*1000.0));
+                    if (seek_count == -1)
+                        seek_count = 1;
+                    else if (seek_count > 0)
+                        seek_count++;
+                }
+                if (!pkt.position)
+                    break;
+            }
+            pkt = Packet();
+            continue;
+        }
+        // reduce here to ensure to decode the rest data in the next loop
+        if (!pkt.isEOF())
+            pkt.skip(pkt.data.size() - dec->undecodedSize());
+        VideoFrame frame = dec->frame();
+
+        if (!frame.isValid()) {
+            qWarning("invalid video frame from decoder. undecoded data size: %d", pkt.data.size());
+            if (pkt_data == pkt.data.constData()) //FIXME: for libav9. what about other versions?
+                pkt = Packet();
+            else
+                pkt_data = pkt.data.constData();
+            continue;
+        }
+        pkt_data = pkt.data.constData();
+        if (frame.timestamp() <= 0)
+            frame.setTimestamp(pkt.pts*0.02); // pkt.pts is wrong. >= real timestamp
+        const qreal pts = frame.timestamp();
+        d.pts_history.push_back(pts);
+        // seek finished because we can ensure no packet before seek decoded when render_pts0 is set
+        //qDebug("pts0: %f, pts: %f, clock: %d", d.render_pts0, pts, d.clock->clockType());
+        if (d.render_pts0 >= 0.0) {
+            if (pts < d.render_pts0) {
+                if (!pkt.isEOF())
+                    pkt = Packet();
+                continue;
+            }
+            d.render_pts0 = -1;
+            qDebug("video seek finished @%f. id: %d", pts, sync_id);
+            d.clock->syncEndOnce(sync_id);
+            Q_EMIT seekFinished(qint64(pts*1000.0));
+            if (seek_count == -1)
+                seek_count = 1;
+            else if (seek_count > 0)
+                seek_count++;
+        }
         if(d.clock->value() != 0) {
-            //qreal diff = frame.timestamp() - d.clock->value(); //+ v_a;
             qreal clock = d.clock->value();// * time_base;
-            qreal ts = frame.timestamp();// * time_base/1000;
-            qreal diff = ts - clock; //+ v_a;
+            qreal ts = frame.timestamp();// * time_base*0.02;
+            qreal diff = ts - clock;
             if(diff < 0)
             {
-                //qDebug() << "audio newer than video: " << diff;
+                qDebug() << "video too slow";
+                if (nb_dec_slow > kNbSlowSkip) {
+                    skip_render = !pkt.hasKeyFrame && (nb_dec_slow %2);
+                }
             }
             else if (diff > 0)
             {
-                //qDebug() << "audio older than video: " << diff;
+                waitAndCheck(diff, ts);
             }
-            waitAndCheck(diff, ts);
         }
+
+        if (skip_render) {
+            qDebug("skip rendering @%.3f", pts);
+            pkt = Packet();
+            continue;
+        }
+
         d.clock->updateVideoTime(frame.timestamp());
 
-        //if(video_clock)
+        Q_ASSERT(d.statistics);
+        d.statistics->video.current_time = QTime(0, 0, 0).addMSecs(int(pts * 1000.0)); //TODO: is it expensive?
+        applyFilters(frame);
 
+        //while can pause, processNextTask, not call outset.puase which is deperecated
+        while (d.outputSet->canPauseThread()) {
+            d.outputSet->pauseThread(100);
+            //tryPause(100);
+            processNextTask();
+        }
 
-        processNextTask();
-        deliverVideoFrame(frame);
+        // no return even if d.stop is true. ensure frame is displayed. otherwise playing an image may be failed to display
+        if (!deliverVideoFrame(frame))
+            continue;
+        //qDebug("clock.diff: %.3f", d.clock->diff());
+        if (d.force_dt > 0)
+            last_deliver_time = QDateTime::currentMSecsSinceEpoch();
+        // TODO: store original frame. now the frame is filtered and maybe converted to renderer perferred format
+        d.displayed_frame = frame;
     }
     d.packets.clear();
+    qDebug("Video thread stops running...");
 
 }
 
