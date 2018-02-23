@@ -414,11 +414,11 @@ void VideoThread::run()
 		    diff = 0.1;
 	    }
             if (d.force_fps <= 0)// || !qFuzzyCompare(d.clock->speed(), 1.0))
-                waitAndCheck(diff*1000UL, dts); // TODO: count decoding and filter time, or decode immediately but wait for display
+            {
+                //waitAndCheck(diff*1000UL, dts); // TODO: count decoding and filter time, or decode immediately but wait for display
+            }
             diff = 0; // TODO: can not change delay!
         }
-        // update here after wait. TODO: use decoded timestamp/guessed next pts?
-        d.clock->updateVideoTime(dts); // FIXME: dts or pts?
         bool skip_render = false;
         if (qAbs(diff) < 0.5) {
             if (diff < -kSyncThreshold) { //Speed up. drop frame?
@@ -426,22 +426,11 @@ void VideoThread::run()
             }
         } else if (!seeking) { //when to drop off?
             qDebug("delay %fs @%.3fs pts:%.3f", diff, d.clock->value(), pkt.pts);
-            if (diff < 0) {
-                if (nb_dec_slow > kNbSlowSkip) {
-                    skip_render = !pkt.hasKeyFrame && (nb_dec_slow %2);
-                }
-            } else {
-                const double s = qMin<qreal>(0.01*(nb_dec_fast>>1), diff);
-                qWarning("video too fast!!! sleep %.2f s, nb fast: %d, v_a: %.4f", s, nb_dec_fast, v_a);
-                waitAndCheck(s*1000UL, dts);
-                diff = 0;
-                skip_render = false;
-            }
         }
         //audio packet not cleaned up?
         if (diff > 0 && diff < 1.0 && !seeking) {
             // can not change d.delay here! we need it to comapre to next loop
-            waitAndCheck(diff*1000UL, dts);
+            //waitAndCheck(diff*1000UL, dts);
         }
         if (wait_key_frame) {
             if (!pkt.hasKeyFrame) {
@@ -526,6 +515,21 @@ void VideoThread::run()
             v_a = 0; //?
             continue;
         }
+        const double audioTS = d.clock->value()*0.02*1000UL;
+        const double videoTS = frame.timestamp()*0.02*1000UL;
+        double newDiff = videoTS - audioTS;
+        if (newDiff < 0) {
+            if (nb_dec_slow > kNbSlowSkip) {
+                skip_render = !pkt.hasKeyFrame && (nb_dec_slow %2);
+            }
+        } else {
+            qWarning("video too fast!!! directDiff:%f, oldDiff: %f, newDiff:%f", frame.timestamp()-d.clock->value(), diff, newDiff);
+            waitAndCheck((frame.timestamp()-d.clock->value())*1000UL, frame.timestamp());
+            diff = 0;
+            skip_render = false;
+        }
+        d.clock->updateVideoTime(frame.timestamp());
+
         pkt_data = pkt.data.constData();
         if (frame.timestamp() <= 0)
             frame.setTimestamp(pkt.pts); // pkt.pts is wrong. >= real timestamp
@@ -576,7 +580,7 @@ void VideoThread::run()
                 clock()->updateValue(frame.timestamp()); //external clock?
             }
             if (delta > 0LL) { // limit up bound?
-                waitAndCheck((ulong)delta, -1); // wait and not compare pts-clock
+                //waitAndCheck((ulong)delta, -1); // wait and not compare pts-clock
             }
         } else if (false) { //FIXME: may block a while when seeking
             const qreal display_wait = pts - clock()->value();
@@ -584,7 +588,9 @@ void VideoThread::run()
                 // wait to pts reaches. TODO: count rendering time
                 //qDebug("wait %f to display for pts %f-%f", display_wait, pts, clock()->value());
                 if (display_wait < 1.0)
-                    waitAndCheck(display_wait*1000UL, pts); // TODO: count decoding and filter time
+                {
+                    //waitAndCheck(display_wait*1000UL, pts); // TODO: count decoding and filter time
+                }
             }
         }
         // no return even if d.stop is true. ensure frame is displayed. otherwise playing an image may be failed to display

@@ -159,7 +159,14 @@ VideoFrame VideoDecoderFFmpegBase::frame()
     frame.setBits(d.frame->data);
     frame.setBytesPerLine(d.frame->linesize);
     // in s. TODO: what about AVFrame.pts? av_frame_get_best_effort_timestamp? move to VideoFrame::from(AVFrame*)
-    frame.setTimestamp((double)d.frame->pkt_pts/1000.0);
+    double pts = d.frame->pkt_pts;
+    if((double)d.frame->pkt_pts != AV_NOPTS_VALUE) {
+      pts = av_frame_get_best_effort_timestamp(d.frame);
+    } else {
+      pts = 0;
+    }
+
+    frame.setTimestamp((double)pts/1000.0);
     frame.setMetaData(QStringLiteral("avbuf"), QVariant::fromValue(AVFrameBuffersRef(new AVFrameBuffers(d.frame))));
     d.updateColorDetails(&frame);
     if (frame.format().hasPalette()) {
