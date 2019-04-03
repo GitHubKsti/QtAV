@@ -118,6 +118,7 @@ void AudioThread::run()
             //qDebug("eof pkt: %d valid: %d, aqueue size: %d, abuffer: %d %.3f %d, fake_duration: %lld", pkt.isEOF(), pkt.isValid(), d.packets.size(), d.packets.bufferValue(), d.packets.bufferMax(), d.packets.isFull(), fake_duration);
             // If seek requested but last decode failed
             if (!pkt.isEOF() && (fake_duration <= 0 || !d.packets.isEmpty())) {
+                d.packets.setBlocking(false);
                 pkt = d.packets.take(); //wait to dequeue
             }
             if (pkt.isEOF()) {

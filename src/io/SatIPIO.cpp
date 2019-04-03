@@ -386,8 +386,16 @@ void SatIPIO::onUrlChanged()
 	d.udpThread->start();
 	d.udpSocket = new QUdpSocket();
 	d.udpSocket->setReadBufferSize(10485760);
-	connect(d.udpSocket, &QIODevice::readyRead, this,
-			&SatIPIO::udpSocketRead, Qt::DirectConnection);
+    if(this->thread() == d.udpSocket->thread())
+    {
+        connect(d.udpSocket, &QIODevice::readyRead, this,
+                &SatIPIO::udpSocketRead, Qt::DirectConnection);
+    }
+    else
+    {
+        connect(d.udpSocket, &QIODevice::readyRead, this,
+                &SatIPIO::udpSocketRead, Qt::QueuedConnection);
+    }
 
 	// find an unused port pair
 	do {
