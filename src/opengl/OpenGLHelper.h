@@ -31,7 +31,9 @@
 #else
 #define DYGL(glFunc) glFunc
 #endif
-
+#ifdef IPHONEOS
+#include "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk/System/Library/Frameworks/OpenGLES.framework/Headers/ES3/gl.h"
+#endif
 #define EGL_ENSURE(x, ...) \
     do { \
         if (!(x)) { \

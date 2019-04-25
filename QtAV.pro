@@ -48,6 +48,7 @@ contains(QT_CONFIG, opengl):!no-gl:!no-widgets {
     OptionalDepends *= gl
   }
 }
+LIBS+=-framework AVFoundation
 ## sse2 sse4_1 may be defined in Qt5 qmodule.pri but is not included. Qt4 defines sse and sse2
 #configure.prf always use simulator
 !iphoneos:!no-sse4_1:!sse4_1: OptionalDepends *= sse4_1

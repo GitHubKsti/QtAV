@@ -425,7 +425,7 @@ void VideoThread::run()
                 //continue;
             }
         } else if (!seeking) { //when to drop off?
-            qDebug("delay %fs @%.3fs pts:%.3f", diff, d.clock->value(), pkt.pts);
+            //qDebug("delay %fs @%.3fs pts:%.3f", diff, d.clock->value(), pkt.pts);
         }
         //audio packet not cleaned up?
         if (diff > 0 && diff < 1.0 && !seeking) {
@@ -523,7 +523,7 @@ void VideoThread::run()
                 skip_render = !pkt.hasKeyFrame && (nb_dec_slow %2);
             }
         } else {
-            qWarning("video too fast!!! directDiff:%f, oldDiff: %f, newDiff:%f", frame.timestamp()-d.clock->value(), diff, newDiff);
+            //qWarning("video too fast!!! directDiff:%f, oldDiff: %f, newDiff:%f", frame.timestamp()-d.clock->value(), diff, newDiff);
             waitAndCheck((frame.timestamp()-d.clock->value())*1000UL, frame.timestamp());
             diff = 0;
             skip_render = false;

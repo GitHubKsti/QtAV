@@ -20,6 +20,7 @@
 ******************************************************************************/
 
 #include "SurfaceInteropCV.h"
+#define Q_OS_IOS 0
 #ifdef Q_OS_IOS
 #import <OpenGLES/EAGL.h>
 #include <CoreVideo/CVOpenGLESTextureCache.h>

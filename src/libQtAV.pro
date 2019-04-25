@@ -98,17 +98,17 @@ win32 {
 #CXXFLAGS debug: /MTd
     !static:QMAKE_LFLAGS *= /NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib #for msbuild vs2013
 }
-capi {
-contains(QT_CONFIG, egl)|contains(QT_CONFIG, dynamicgl)|contains(QT_CONFIG, opengles2) {
-  CONFIG *= enable_egl
-  !ios {
-    winrt: DEFINES += CAPI_LINK_EGL #required by capi_egl.*
-    DEFINES += QTAV_HAVE_EGL_CAPI=1
-    HEADERS *= capi/egl_api.h
-    SOURCES *= capi/egl_api.cpp
-  }
-}
-}
+#capi {
+#contains(QT_CONFIG, egl)|contains(QT_CONFIG, dynamicgl)|contains(QT_CONFIG, opengles2) {
+#  CONFIG *= enable_egl
+#  !ios:!tvos {
+#    winrt: DEFINES += CAPI_LINK_EGL #required by capi_egl.*
+#    DEFINES += QTAV_HAVE_EGL_CAPI=1
+#    HEADERS *= capi/egl_api.h
+#    SOURCES *= capi/egl_api.cpp
+#  }
+#}
+#}
 enable_egl:greaterThan(QT_MAJOR_VERSION,4):qtHaveModule(x11extras): QT *= x11extras
 
 config_gl|config_opengl {
@@ -162,6 +162,9 @@ config_avdevice { #may depends on avfilter
         }
       }
     }
+}
+ios {
+  LIBS += -framework Foundation -framework AVFoundation -framework CoreMedia -framework QuartzCore -framework CoreGraphics -framework CoreVideo -framework AppKit -framework Security
 }
 config_avfilter {
     DEFINES += QTAV_HAVE_AVFILTER=1
@@ -243,7 +246,7 @@ config_pulseaudio {
     DEFINES *= QTAV_HAVE_PULSEAUDIO=1
     LIBS += -lpulse
 }
-CONFIG += config_cuda
+#CONFIG += config_cuda
 #CONFIG += config_cuda_link
 config_cuda {
     DEFINES += QTAV_HAVE_CUDA=1
