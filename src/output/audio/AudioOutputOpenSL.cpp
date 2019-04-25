@@ -31,7 +31,9 @@
 #include "QtAV/private/mkid.h"
 #include "QtAV/private/factory.h"
 #include "utils/Logger.h"
+#include <cmath>
 
+using namespace std;
 // TODO: native sample rate, so AUDIO_OUTPUT_FLAG_FAST is enabled
 namespace QtAV {
 
