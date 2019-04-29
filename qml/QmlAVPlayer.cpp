@@ -25,6 +25,7 @@
 #include <QtAV/VideoCapture.h>
 #include <QtAV/LibAVFilter.h>
 #include <QDebug>
+#include <QmlAVPlayer.h>
 
 template<typename ID, typename T>
 static QStringList idsToNames(QVector<ID> ids) {
@@ -152,6 +153,21 @@ QUrl QmlAVPlayer::source() const
 
 void QmlAVPlayer::setSource(const QUrl &url)
 {
+    qDebug() << "url.host:" << url.host() << " url.port():" << url.port();
+    if(url.host() != "")
+    {
+        m_lookupSocket.connectToHost(url.host(), url.port());
+        if(!m_lookupSocket.waitForConnected(1500))
+        {
+            m_lookupSocket.abort();
+            mError = ResourceError;
+            mErrorString = "Device not Found";
+            Q_EMIT error(mError, mErrorString);
+            Q_EMIT errorChanged();
+            return;
+        }
+        m_lookupSocket.abort();
+    }
     if (mSource == url)
         return;
     mSource = url;

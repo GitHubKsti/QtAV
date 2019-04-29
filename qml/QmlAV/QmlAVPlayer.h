@@ -30,6 +30,7 @@
 #include <QmlAV/QuickFilter.h>
 #include <QtAV/AVError.h>
 #include <QtAV/VideoCapture.h>
+#include <QTcpSocket>
 
 namespace QtAV {
 class AVPlayer;
@@ -369,6 +370,7 @@ private:
     QList<QuickAudioFilter*> m_afilters;
     QList<QuickVideoFilter*> m_vfilters;
     QStringList m_ao;
+    QTcpSocket m_lookupSocket;
 };
 
 #endif // QTAV_QML_AVPLAYER_H
