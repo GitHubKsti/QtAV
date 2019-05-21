@@ -166,6 +166,11 @@ bool AudioOutputAudioToolbox::open()
 
     sem.release(buffer_count - sem.available());
     m_waiting = false;
+    AudioSessionInitialize(nullptr, nullptr, nullptr, nullptr);
+    UInt32 sessionCategory = kAudioSessionCategory_MediaPlayback;
+    AudioSessionSetProperty(kAudioSessionProperty_AudioCategory, sizeof(sessionCategory), &sessionCategory);
+    AudioSessionSetActive(true);
+
     return true;
 }
 
