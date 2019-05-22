@@ -166,10 +166,14 @@ bool AudioOutputAudioToolbox::open()
 
     sem.release(buffer_count - sem.available());
     m_waiting = false;
+#ifdef Q_OS_IOS
+    //Configure the audio session with its main task: audio
+    //this will ignore the silent switch on an ipad or an iphone. otherwise, the sound also will switch off.
     AudioSessionInitialize(nullptr, nullptr, nullptr, nullptr);
     UInt32 sessionCategory = kAudioSessionCategory_MediaPlayback;
     AudioSessionSetProperty(kAudioSessionProperty_AudioCategory, sizeof(sessionCategory), &sessionCategory);
     AudioSessionSetActive(true);
+#endif
 
     return true;
 }
