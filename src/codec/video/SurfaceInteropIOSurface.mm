@@ -20,6 +20,7 @@
 ******************************************************************************/
 
 #include "SurfaceInteropCV.h"
+#define IOS_USE_PRIVATE 0 // private symbols are forbidden by app store
 #define Q_OS_IOS 0
 #ifdef Q_OS_IOS
 #import <OpenGLES/EAGL.h>
@@ -143,7 +144,9 @@ bool InteropResourceIOSurface::map(CVPixelBufferRef buf, GLuint *tex, int w, int
         ok = [[EAGLContext currentContext] texImageIOSurface:surface target:target internalFormat:iformat width:planeW height:planeH format:format type:dtype plane:plane];
     else // fallback to old private api if runtime version < 11
 # endif //__IPHONE_11_0
+#if IOS_USE_PRIVATE
         ok = [[EAGLContext currentContext] texImageIOSurface:surface target:target internalFormat:iformat width:planeW height:planeH format:format type:dtype plane:plane invert:NO];
+#endif //IOS_USE_PRIVATE
     if (!ok) {
          qWarning("error creating IOSurface texture at plane %d", plane);
     }
